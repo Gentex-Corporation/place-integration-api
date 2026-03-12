@@ -14,7 +14,9 @@ authors = [
 license = { text = "Proprietary" }
 dependencies = [
   "boto3",
+  "aiohttp",
   "paho-mqtt",
+  "six",
 ]
 
 [project.optional-dependencies]
