@@ -14,12 +14,12 @@ import sys
 
 from aiohttp import ClientSession
 
-from place_integration_api.auth import get_credentials_via_cognito
-from place_integration_api.auth.abstract_auth import AbstractAuth
-from place_integration_api.config import REGION
-from place_integration_api.messages import PlaceMessages
-from place_integration_api.mqtt_client import MqttClient
-from place_integration_api.provider import Provider
+from place.auth import get_credentials_via_cognito
+from place.auth.abstract_auth import AbstractAuth
+from place.config import REGION
+from place.messages import PlaceMessages
+from place.mqtt_client import MqttClient
+from place.provider import Provider
 
 
 class HomeAssistantAuth(AbstractAuth):
@@ -52,7 +52,7 @@ async def main() -> None:
         username=env["COGNITO_USERNAME"],
         password=env["COGNITO_PASSWORD"],
         region=region,
-        mfa_code=env.get("COGNITO_MFA_CODE") or None,
+        # mfa_code=env.get("COGNITO_MFA_CODE") or None,
     )
 
     assert credentials.access_token, "Cognito credentials missing access token"

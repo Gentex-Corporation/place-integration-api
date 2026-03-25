@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, Dict
 
 import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
 
 from .aws_srp import AWSSRP
 from ..config import REGION
@@ -38,7 +40,8 @@ def get_credentials_via_cognito(
     password: str,
     region: str = REGION,
 ) -> Credentials:
-    identity = boto3.client("cognito-identity", region_name=region)
+    identity = boto3.client("cognito-identity", region_name=region,
+    config=Config(signature_version=UNSIGNED),)
 
     resp = get_tokens_via_srp(
         user_pool_id=user_pool_id,

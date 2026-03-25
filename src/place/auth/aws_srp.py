@@ -7,6 +7,8 @@ import hmac
 import re
 
 import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
 import os
 import six
 
@@ -135,7 +137,11 @@ class AWSSRP(object):
         self.client_id = client_id
         self.client_secret = client_secret
         self.client = (
-            client if client else boto3.client("cognito-idp", region_name=pool_region)
+            client if client else boto3.client(
+                "cognito-idp",
+                region_name=pool_region,
+                config=Config(signature_version=UNSIGNED),
+            )
         )
         self.big_n = hex_to_long(n_hex)
         self.g = hex_to_long(g_hex)
