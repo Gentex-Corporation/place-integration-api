@@ -6,10 +6,14 @@ import hashlib
 import hmac
 import re
 
+import os
+
+os.environ.setdefault("AWS_SHARED_CREDENTIALS_FILE", os.devnull)
+os.environ.setdefault("AWS_CONFIG_FILE", os.devnull)
+
 import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
-import os
 import six
 
 
