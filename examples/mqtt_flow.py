@@ -77,20 +77,20 @@ async def main() -> None:
     def on_message(topic: str, raw: bytes) -> None:
         print(messages.describe(topic, raw))
 
-    client.connect(on_message=on_message)
+    def on_connect() -> None:
+        for hid in household_ids:
+            subscribed = messages.subscribe_household(hid, qos=1)
+            print(f"Subscribed household: {subscribed}")
 
-    for hid in household_ids:
-        subscribed = messages.subscribe_household(hid, qos=1)
-        print(f"Subscribed household: {subscribed}")
+        for thing in thing_names or []:
+            subscribed = messages.subscribe_shadow(thing, qos=1)
+            print(f"Subscribed shadow: {subscribed}")
 
-    for thing in thing_names or []:
-        subscribed = messages.subscribe_shadow(thing, qos=1)
-        print(f"Subscribed shadow: {subscribed}")
+        for thing in thing_names or []:
+            published = messages.publish_shadow_get(thing, qos=1)
+            print(f"Published shadow get: {published}")
 
-    for thing in thing_names or []:
-        published = messages.publish_shadow_get(thing, qos=1)
-        print(f"Published shadow get: {published}")
-
+    client.connect(on_message=on_message, on_connect=on_connect)
     client.loop_forever()
 
 
