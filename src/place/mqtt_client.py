@@ -94,11 +94,7 @@ class MqttClient:
         self.credentials = credentials
         self._client: mqtt.Client | None = None
 
-    def connect(
-        self,
-        on_message: Callable[[str, bytes], None] | None = None,
-        on_connect: Callable[[], None] | None = None,
-    ) -> None:
+    def connect(self, on_message: Callable[[str, bytes], None] | None = None) -> None:
         signed_uri = get_signed_uri(
             access_key_id=self.credentials.access_key_id,
             secret_access_key=self.credentials.secret_access_key,
@@ -116,13 +112,14 @@ class MqttClient:
         client.ws_set_options(path=path_with_query)
         client.tls_set()
 
+        self._connected = False
+
         def _on_connect(_client, _userdata, _flags, reason_code, _props=None):
             if reason_code != 0:
                 print(f"Connect failed: {reason_code}")
                 return
             print("Connected")
-            if on_connect:
-                on_connect()
+            self._connected = True
 
         def _on_message(_client, _userdata, msg):
             if on_message:
@@ -132,6 +129,9 @@ class MqttClient:
         client.on_message = _on_message
         client.connect(self.endpoint, 443, KEEP_ALIVE_SEC)
         self._client = client
+        client.loop_start()
+        while not self._connected:
+            pass
 
     def subscribe(self, topic: str, qos: int = 1) -> None:
         assert self._client is not None
