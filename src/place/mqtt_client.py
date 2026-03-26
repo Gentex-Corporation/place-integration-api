@@ -94,7 +94,11 @@ class MqttClient:
         self.credentials = credentials
         self._client: mqtt.Client | None = None
 
-    def connect(self, on_message: Callable[[str, bytes], None] | None = None) -> None:
+    def connect(
+        self,
+        on_message: Callable[[str, bytes], None] | None = None,
+        on_connect: Callable[[], None] | None = None,
+    ) -> None:
         signed_uri = get_signed_uri(
             access_key_id=self.credentials.access_key_id,
             secret_access_key=self.credentials.secret_access_key,
@@ -117,6 +121,8 @@ class MqttClient:
                 print(f"Connect failed: {reason_code}")
                 return
             print("Connected")
+            if on_connect:
+                on_connect()
 
         def _on_message(_client, _userdata, msg):
             if on_message:

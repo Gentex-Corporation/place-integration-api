@@ -38,6 +38,10 @@ def shadow_get_topic(thing_name: str) -> str:
     return f"{SHADOW_GET_PREFIX}/{thing_name}/shadow/get"
 
 
+def shadow_subscription_topic(thing_name: str) -> str:
+    return f"{SHADOW_GET_PREFIX}/{thing_name}/shadow/#"
+
+
 def describe_message(topic: str, raw: bytes) -> str:
     payload = parse_payload(raw)
     kind = message_kind(topic, payload)
@@ -61,6 +65,13 @@ class PlaceMessages:
         topic = household_subscription_topic(hid)
         self._client.subscribe(topic, qos=qos)
         return hid
+
+    def subscribe_shadow(self, thing_name: str, qos: int = 1) -> str:
+        name = thing_name.strip()
+        assert name
+        topic = shadow_subscription_topic(name)
+        self._client.subscribe(topic, qos=qos)
+        return name
 
     def publish_shadow_get(self, thing_name: str, qos: int = 1) -> str:
         name = thing_name.strip()
