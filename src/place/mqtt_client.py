@@ -134,6 +134,7 @@ class MqttClient:
 
         client.on_connect = _on_connect
         client.on_message = _on_message
+        client.enable_logger()
         client.connect(self.endpoint, 443, KEEP_ALIVE_SEC)
         self._client = client
 
