@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -112,14 +113,14 @@ class MqttClient:
         client.ws_set_options(path=path_with_query)
         client.tls_set()
 
-        self._connected = False
+        connected = threading.Event()
 
         def _on_connect(_client, _userdata, _flags, reason_code, _props=None):
             if reason_code != 0:
                 print(f"Connect failed: {reason_code}")
-                return
-            print("Connected")
-            self._connected = True
+            else:
+                print("Connected")
+            connected.set()
 
         def _on_message(_client, _userdata, msg):
             if on_message:
@@ -130,8 +131,8 @@ class MqttClient:
         client.connect(self.endpoint, 443, KEEP_ALIVE_SEC)
         self._client = client
         client.loop_start()
-        while not self._connected:
-            pass
+        if not connected.wait(timeout=10):
+            raise TimeoutError("MQTT connection timed out")
 
     def subscribe(self, topic: str, qos: int = 1) -> None:
         assert self._client is not None
