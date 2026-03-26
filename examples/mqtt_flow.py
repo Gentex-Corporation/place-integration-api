@@ -9,6 +9,7 @@ then connects to AWS IoT Core over MQTT and prints incoming messages.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 
@@ -90,7 +91,9 @@ async def main() -> None:
             published = messages.publish_shadow_get(thing, qos=1)
             print(f"Published shadow get: {published}")
 
+    logging.basicConfig(level=logging.DEBUG)
     client.connect(on_message=on_message, on_connect=on_connect)
+    print("Starting loop_forever...")
     client.loop_forever()
 
 

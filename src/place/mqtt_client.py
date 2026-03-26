@@ -36,7 +36,7 @@ def get_signed_uri(
     now = datetime.now(timezone.utc)
     date_stamp = now.strftime("%Y%m%d")
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
-    credential_scope = f"{access_key_id}/{date_stamp}/{REGION}/{SERVICE}/aws4_request"
+    credential_scope = f"{date_stamp}/{REGION}/{SERVICE}/aws4_request"
     signed_headers = "host"
     canonical_headers = f"host:{host}\n"
     payload_hash = _sha256_hex("")
@@ -46,7 +46,7 @@ def get_signed_uri(
 
     query = {
         "X-Amz-Algorithm": ALGORITHM,
-        "X-Amz-Credential": credential_scope,
+        "X-Amz-Credential": f"{access_key_id}/{credential_scope}",
         "X-Amz-Date": amz_date,
         "X-Amz-Expires": str(EXPIRE_SEC),
         "X-Amz-SignedHeaders": signed_headers,
