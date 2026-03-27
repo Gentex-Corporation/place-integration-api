@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 from urllib.parse import quote
@@ -36,7 +35,7 @@ def get_signed_uri(
     now = datetime.now(timezone.utc)
     date_stamp = now.strftime("%Y%m%d")
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
-    credential_scope = f"{date_stamp}/{REGION}/{SERVICE}/aws4_request"
+    credential_scope = f"{access_key_id}/{date_stamp}/{REGION}/{SERVICE}/aws4_request"
     signed_headers = "host"
     canonical_headers = f"host:{host}\n"
     payload_hash = _sha256_hex("")
@@ -46,9 +45,10 @@ def get_signed_uri(
 
     query = {
         "X-Amz-Algorithm": ALGORITHM,
-        "X-Amz-Credential": f"{access_key_id}/{credential_scope}",
+        "X-Amz-Credential": credential_scope,
         "X-Amz-Date": amz_date,
         "X-Amz-Expires": str(EXPIRE_SEC),
+        "X-Amz-Security-Token": session_token,
         "X-Amz-SignedHeaders": signed_headers,
     }
     canonical_query = "&".join(f"{enc(k)}={enc(v)}" for k, v in sorted(query.items()))
@@ -78,7 +78,6 @@ def get_signed_uri(
     signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
     query["X-Amz-Signature"] = signature
-    query["X-Amz-Security-Token"] = session_token
     query_string = "&".join(f"{enc(k)}={enc(v)}" for k, v in sorted(query.items()))
     return f"{SCHEME}://{host}{PATH}?{query_string}"
 
@@ -105,7 +104,7 @@ class MqttClient:
             session_token=self.credentials.session_token,
             host=self.endpoint,
         )
-        client_id = f"{self.credentials.identity_id}-{uuid.uuid4()}"
+        client_id = self.credentials.identity_id
 
         client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
@@ -114,7 +113,8 @@ class MqttClient:
             protocol=mqtt.MQTTv311,
         )
         path_with_query = "/mqtt" + signed_uri.split("/mqtt", 1)[1]
-        client.ws_set_options(path=path_with_query)
+        print(f"WebSocket path: {path_with_query[:80]}...")
+        client.ws_set_options(path=path_with_query, headers={"Host": self.endpoint})
         client.tls_set()
 
         def _on_connect(_client, _userdata, _flags, reason_code, _properties):
@@ -132,8 +132,12 @@ class MqttClient:
             if on_message:
                 on_message(msg.topic, msg.payload)
 
+        def _on_disconnect(_client, _userdata, _flags, reason_code, _properties):
+            print(f"Disconnected: {reason_code}")
+
         client.on_connect = _on_connect
         client.on_message = _on_message
+        client.on_disconnect = _on_disconnect
         client.enable_logger()
         client.connect(self.endpoint, 443, KEEP_ALIVE_SEC)
         self._client = client
