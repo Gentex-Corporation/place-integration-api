@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 from urllib.parse import quote
@@ -104,7 +105,7 @@ class MqttClient:
             session_token=self.credentials.session_token,
             host=self.endpoint,
         )
-        client_id = self.credentials.identity_id
+        client_id = f"{self.credentials.identity_id}-{uuid.uuid4()}"
 
         client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
