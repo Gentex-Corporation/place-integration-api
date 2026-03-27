@@ -48,7 +48,6 @@ def get_signed_uri(
         "X-Amz-Credential": credential_scope,
         "X-Amz-Date": amz_date,
         "X-Amz-Expires": str(EXPIRE_SEC),
-        "X-Amz-Security-Token": session_token,
         "X-Amz-SignedHeaders": signed_headers,
     }
     canonical_query = "&".join(f"{enc(k)}={enc(v)}" for k, v in sorted(query.items()))
@@ -78,6 +77,7 @@ def get_signed_uri(
     signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
     query["X-Amz-Signature"] = signature
+    query["X-Amz-Security-Token"] = session_token
     query_string = "&".join(f"{enc(k)}={enc(v)}" for k, v in sorted(query.items()))
     return f"{SCHEME}://{host}{PATH}?{query_string}"
 
