@@ -6,9 +6,19 @@ import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
+
 from .aws_srp import AWSSRP
-from ..config import REGION
+from ..config import REGION, COGNITO_CLIENT_ID, COGNITO_USER_POOL_ID
 from ..models import Credentials
+
+
+def login(username: str, password: str) -> Dict[str, Any]:
+    return get_tokens_via_srp(
+        user_pool_id=COGNITO_USER_POOL_ID,
+        client_id=COGNITO_CLIENT_ID,
+        username=username,
+        password=password,
+    )
 
 
 def get_tokens_via_srp(
