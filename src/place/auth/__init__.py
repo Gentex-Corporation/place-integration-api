@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from .srp_auth import get_tokens_via_srp, get_credentials_via_cognito
+from .srp_auth import login, get_iot_credentials
 
 __all__ = [
-    "get_tokens_via_srp",
-    "get_credentials_via_cognito",
+    "login",
+    "get_iot_credentials",
 ]
 
