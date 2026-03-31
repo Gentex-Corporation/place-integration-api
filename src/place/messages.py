@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable
+from typing import Any
 
 from .mqtt_client import MqttClient
 

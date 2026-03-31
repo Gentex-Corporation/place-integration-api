@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Callable
 from urllib.parse import quote
 
 import paho.mqtt.client as mqtt
