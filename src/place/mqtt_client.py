@@ -143,6 +143,11 @@ class MqttClient:
         client.connect(self.endpoint, 443, KEEP_ALIVE_SEC)
         self._client = client
 
+    def disconnect(self):
+        if self._client:
+            self._client.loop_stop()
+            self._client.disconnect()
+
     def subscribe(self, topic: str, qos: int = 1) -> None:
         assert self._client is not None
         self._client.subscribe(topic, qos=qos)
@@ -151,6 +156,10 @@ class MqttClient:
         assert self._client is not None
         data = payload.encode("utf-8") if isinstance(payload, str) else payload
         self._client.publish(topic, data, qos=qos)
+
+    def loop_start(self):
+        assert self._client is not None
+        self._client.loop_start()
 
     def loop_forever(self) -> None:
         assert self._client is not None

@@ -17,6 +17,7 @@ dependencies = [
   "aiohttp",
   "paho-mqtt",
   "six",
+  "decouple"
 ]
 
 [project.optional-dependencies]
