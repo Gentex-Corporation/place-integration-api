@@ -1,0 +1,77 @@
+{
+	"name": "place-integration-api",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": {
+			"USERNAME": "vscode"
+		}
+	},
+	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+	"remoteUser": "vscode",
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"python.defaultInterpreterPath": "/usr/local/bin/python",
+				"[python]": {
+					"diffEditor.ignoreTrimWhitespace": false,
+					"editor.defaultFormatter": "ms-python.black-formatter"
+				},
+				"aws.codeWhisperer.shareCodeWhispererContentWithAWS": false,
+				"aws.telemetry": false,
+				"editor.bracketPairColorization.enabled": true,
+				"editor.detectIndentation": false,
+				"editor.emptySelectionClipboard": false,
+				"editor.fontLigatures": true,
+				"editor.formatOnSave": true,
+				"editor.guides.bracketPairs": "active",
+				"editor.guides.bracketPairsHorizontal": false,
+				"editor.insertSpaces": false,
+				"editor.multiCursorModifier": "ctrlCmd",
+				"editor.tabSize": 4,
+				"editor.wordSeparators": "`~!@#$%^&*()=+[{]}\\|;:'\",.<>/?",
+				"files.exclude": {
+					"**/.git": true,
+					"**/.svn": true,
+					"**/.hg": true,
+					"**/sessions": true,
+					"**/.DS_Store": true
+				},
+				"files.insertFinalNewline": true,
+				"files.trimFinalNewlines": true,
+				"files.trimTrailingWhitespace": true,
+				"redhat.telemetry.enabled": false,
+				"search.showLineNumbers": true,
+				"terminal.integrated.defaultProfile.linux": "zsh",
+				"terminal.integrated.fontFamily": "Hack, MesloLGS NF, Menlo for Powerline, PowerlineSymbols, Cascadia Code PL, monospace",
+				"window.restoreWindows": "all",
+				"window.titleBarStyle": "custom",
+				"workbench.editor.decorations.colors": false,
+				"workbench.editor.highlightModifiedTabs": true,
+				"workbench.editor.openPositioning": "last",
+				"workbench.iconTheme": "material-icon-theme",
+				"workbench.startupEditor": "none",
+				"workbench.tree.indent": 12
+			},
+			"extensions": [
+				"ms-python.black-formatter",
+				"PKief.material-icon-theme",
+				"mikestead.dotenv"
+			]
+		}
+	},
+	"postCreateCommand": "sudo chown -R vscode:vscode /commandhistory",
+	"updateRemoteUserUID": true,
+	"mounts": [
+		"source=zshhistory,target=/commandhistory,type=volume"
+	],
+	"features": {
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+		"ghcr.io/devcontainers/features/common-utils:2": {
+			"installOhMyZsh": false
+		},
+		"ghcr.io/devcontainers-contrib/features/zsh-plugins:0": {
+			"plugins": "git docker pip python pyenv pylint zsh-autosuggestions zsh-syntax-highlighting",
+			"omzPlugins": "https://github.com/zsh-users/zsh-syntax-highlighting.git https://github.com/zsh-users/zsh-autosuggestions"
+		}
+	}
+}
