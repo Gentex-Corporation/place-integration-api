@@ -21,7 +21,7 @@ class DiscoverDevice:
     updated_by: str | None
     activated_at: str | None
     updated_at: str | None
-    location: list[Any]
+    location: str | None
     entity_type: str | None
     status: str | None
     created_by: str | None
@@ -42,7 +42,7 @@ class DiscoverDevice:
             updated_by=_as_str(data.get("updatedBy")),
             activated_at=_as_str(data.get("activatedAt")),
             updated_at=_as_str(data.get("updatedAt")),
-            location=list(data.get("location") or []),
+            location=_as_str(data.get("location") or []),
             entity_type=_as_str(data.get("entityType")),
             status=_as_str(data.get("status")),
             created_by=_as_str(data.get("createdBy")),
@@ -57,4 +57,3 @@ class DiscoverDevice:
             online=_as_bool(data.get("online")),
             warranty_registration=_as_bool(data.get("warrantyRegistration")),
         )
-
