@@ -42,7 +42,7 @@ class DiscoverDevice:
             updated_by=_as_str(data.get("updatedBy")),
             activated_at=_as_str(data.get("activatedAt")),
             updated_at=_as_str(data.get("updatedAt")),
-            location=_as_str(data.get("location") or []),
+            location=_as_str(data.get("location")),
             entity_type=_as_str(data.get("entityType")),
             status=_as_str(data.get("status")),
             created_by=_as_str(data.get("createdBy")),
