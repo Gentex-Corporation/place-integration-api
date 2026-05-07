@@ -9,7 +9,8 @@ description = "Python APIs for Cognito-authenticated MQTT flows and Home Assista
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-  { name = "Gentex", email = "devnull@example.com" },
+  { name="Nicholas Aelick", email="niaexa@syntronic.com" },
+  { name="Andrew Tran", email="andrew.tran@gentex.com" },
 ]
 license = { text = "Proprietary" }
 dependencies = [
@@ -30,4 +31,3 @@ Homepage = "https://pypi.org/project/place-integration-api/"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
