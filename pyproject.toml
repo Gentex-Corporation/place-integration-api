@@ -12,7 +12,11 @@ authors = [
   { name="Nicholas Aelick", email="niaexa@syntronic.com" },
   { name="Andrew Tran", email="andrew.tran@gentex.com" },
 ]
-license = { text = "Proprietary" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 dependencies = [
   "boto3",
   "aiohttp",
