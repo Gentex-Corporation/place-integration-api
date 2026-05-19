@@ -18,7 +18,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  "boto3",
+  "boto3>=1.34,<1.38",
   "aiohttp",
   "paho-mqtt",
   "six",
