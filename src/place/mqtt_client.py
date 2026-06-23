@@ -113,7 +113,6 @@ class MqttClient:
             protocol=mqtt.MQTTv311,
         )
         path_with_query = "/mqtt" + signed_uri.split("/mqtt", 1)[1]
-        print(f"WebSocket path: {path_with_query[:80]}...")
         client.ws_set_options(path=path_with_query, headers={"Host": self.endpoint})
         client.tls_set()
 
