@@ -141,10 +141,13 @@ class MqttClient:
         client.connect(self.endpoint, 443, KEEP_ALIVE_SEC)
         self._client = client
 
-    def disconnect(self):
+    def disconnect(self) -> None:
+        if self._client:
+            self._client.disconnect()
+
+    def loop_stop(self) -> None:
         if self._client:
             self._client.loop_stop()
-            self._client.disconnect()
 
     def subscribe(self, topic: str, qos: int = 1) -> None:
         assert self._client is not None
