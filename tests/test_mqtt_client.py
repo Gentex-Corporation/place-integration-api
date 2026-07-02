@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from place_integration_api.models import Credentials
-from place_integration_api.mqtt_client import get_signed_uri, run_mqtt_flow
+from place.models import Credentials
+from place.mqtt_client import get_signed_uri, MqttClient
 
 
 def test_get_signed_uri_includes_host_and_token() -> None:
@@ -19,9 +19,9 @@ def test_get_signed_uri_includes_host_and_token() -> None:
     assert "X-Amz-Security-Token=token123" in uri
 
 
-@patch("place_integration_api.mqtt_client.mqtt.Client")
-@patch("place_integration_api.mqtt_client.get_signed_uri")
-def test_run_mqtt_flow_sets_up_client(
+@patch("place.mqtt_client.mqtt.Client")
+@patch("place.mqtt_client.get_signed_uri")
+def test_mqtt_client_connect_sets_up_client(
     mock_get_signed_uri: MagicMock,
     mock_client_cls: MagicMock,
 ) -> None:
@@ -36,16 +36,13 @@ def test_run_mqtt_flow_sets_up_client(
         identity_id="identity-123",
     )
 
-    run_mqtt_flow(
+    mqtt_client = MqttClient(
         endpoint="example.iot.amazonaws.com",
         credentials=creds,
-        household_ids=["hh1"],
-        thing_names=["thing1"],
     )
+    mqtt_client.connect()
 
     mock_get_signed_uri.assert_called_once()
     client.ws_set_options.assert_called()
     client.tls_set.assert_called_once()
     client.connect.assert_called_once()
-    client.loop_forever.assert_called_once()
-

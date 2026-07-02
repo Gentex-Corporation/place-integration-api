@@ -28,10 +28,16 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "basedpyright",
+  "pytest",
+  "pytest-asyncio",
 ]
 
 [project.urls]
 Homepage = "https://pypi.org/project/place-integration-api/"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.setuptools.packages.find]
 where = ["src"]

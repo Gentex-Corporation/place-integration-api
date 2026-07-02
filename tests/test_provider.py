@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 
-from place_integration_api.auth.abstract_auth import AbstractAuth
-from place_integration_api.config import FULFILLMENT_URL
-from place_integration_api.provider import Provider
+from place.auth.abstract_auth import AbstractAuth
+from place.config import FULFILLMENT_URL
+from place.provider import Provider
 
 
 def test_provider_discover_parses_response() -> None:
@@ -12,8 +12,8 @@ def test_provider_discover_parses_response() -> None:
         "success": True,
         "data": {
             "devices": [
-                {"householdId": "h1", "thingName": "t1", "deviceId": "d1"},
-                {"householdId": "h2", "thingName": "t2", "deviceId": "d2"},
+                {"thingName": "t1", "deviceId": "d1", "deviceName": "Device 1"},
+                {"thingName": "t2", "deviceId": "d2", "deviceName": "Device 2"},
             ]
         },
     }
@@ -40,16 +40,13 @@ def test_provider_discover_parses_response() -> None:
 
     assert auth.calls == [("POST", FULFILLMENT_URL, {"json": {"command": "DISCOVER", "data": {}}})]
 
-    household_ids = sorted(
-        {d.household_id for d in devices if d.household_id is not None}
-    )
     thing_names = sorted(
         {d.thing_name for d in devices if d.thing_name is not None}
     )
 
-    assert household_ids == ["h1", "h2"]
     assert thing_names == ["t1", "t2"]
     assert [d.device_id for d in devices] == ["d1", "d2"]
+    assert [d.device_name for d in devices] == ["Device 1", "Device 2"]
 
 
 def test_provider_enable_sends_enable_command() -> None:
@@ -90,7 +87,7 @@ def test_provider_disable_sends_disable_command() -> None:
             return "token"
 
         async def request(self, method, url, **kwargs):
-            self.calls.append((method, url, **kwargs))
+            self.calls.append((method, url, kwargs))
 
             class DummyResponse:
                 async def json(self_inner):
@@ -104,4 +101,3 @@ def test_provider_disable_sends_disable_command() -> None:
 
     assert auth.calls == [("POST", FULFILLMENT_URL, {"json": {"command": "DISABLE", "data": {}}})]
     assert result == payload
-
