@@ -22,7 +22,8 @@ dependencies = [
   "aiohttp",
   "paho-mqtt",
   "six",
-  "python-decouple"
+  "python-decouple".
+  "jwt"
 ]
 
 [project.optional-dependencies]
