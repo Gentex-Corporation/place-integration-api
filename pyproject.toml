@@ -22,7 +22,7 @@ dependencies = [
   "aiohttp",
   "paho-mqtt",
   "six",
-  "python-decouple".
+  "python-decouple",
   "jwt"
 ]
 
