@@ -59,7 +59,7 @@
 			]
 		}
 	},
-	"postCreateCommand": "sudo chown -R vscode:vscode /commandhistory",
+	"postCreateCommand": "sudo chown -R vscode:vscode /commandhistory && pip install --user -e '.[dev]'",
 	"updateRemoteUserUID": true,
 	"mounts": [
 		"source=zshhistory,target=/commandhistory,type=volume"
