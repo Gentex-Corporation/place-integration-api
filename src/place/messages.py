@@ -85,7 +85,7 @@ class PlaceMessages:
 
 
     @staticmethod
-    def _thing_name_from_topic(topic: str) -> str | None:
+    def thing_name_from_topic(topic: str) -> str | None:
         """Extract thing_name from an AWS IoT shadow topic ($aws/things/{name}/shadow/...)."""
         parts = topic.split("/")
         if len(parts) >= 3 and parts[0] == "$aws" and parts[1] == "things":
