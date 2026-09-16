@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "place-integration-api"
-version = "0.2.4"
+version = "0.2.5"
 description = "Python APIs for Cognito-authenticated MQTT flows and Home Assistant discovery for Gentex Place."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -34,7 +34,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://pypi.org/project/place-integration-api/"
+Homepage = "https://placehomesolutions.com"
+Issues = "https://placehomesolutions.com/support"
+Repository = "https://github.com/Gentex-Corporation/place-integration-api"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
