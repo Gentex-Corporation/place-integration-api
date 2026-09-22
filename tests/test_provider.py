@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from place.auth.abstract_auth import AbstractAuth
 from place.config import FULFILLMENT_URL
+from place.errors import PlaceFulfillmentError
 from place.provider import Provider
 
 
@@ -101,3 +104,79 @@ def test_provider_disable_sends_disable_command() -> None:
 
     assert auth.calls == [("POST", FULFILLMENT_URL, {"json": {"command": "DISABLE", "data": {}}})]
     assert result == payload
+
+
+def test_provider_discover_raises_on_success_false() -> None:
+    payload = {"success": False, "message": "not authorized"}
+
+    class DummyAuth(AbstractAuth):
+        async def async_get_access_token(self) -> str:
+            return "token"
+
+        async def request(self, method, url, **kwargs):
+            class DummyResponse:
+                async def json(self_inner):
+                    return payload
+
+            return DummyResponse()
+
+    provider = Provider(DummyAuth(None))
+
+    with pytest.raises(PlaceFulfillmentError):
+        asyncio.run(provider.discover())
+
+
+def test_provider_enable_raises_on_success_false() -> None:
+    payload = {"success": False, "message": "not authorized"}
+
+    class DummyAuth(AbstractAuth):
+        async def async_get_access_token(self) -> str:
+            return "token"
+
+        async def request(self, method, url, **kwargs):
+            class DummyResponse:
+                async def json(self_inner):
+                    return payload
+
+            return DummyResponse()
+
+    provider = Provider(DummyAuth(None))
+
+    with pytest.raises(PlaceFulfillmentError):
+        asyncio.run(provider.enable())
+
+
+def test_provider_raises_on_non_dict_response() -> None:
+    class DummyAuth(AbstractAuth):
+        async def async_get_access_token(self) -> str:
+            return "token"
+
+        async def request(self, method, url, **kwargs):
+            class DummyResponse:
+                async def json(self_inner):
+                    return None
+
+            return DummyResponse()
+
+    provider = Provider(DummyAuth(None))
+
+    with pytest.raises(PlaceFulfillmentError):
+        asyncio.run(provider.discover())
+
+
+def test_provider_raises_on_invalid_json_body() -> None:
+    class DummyAuth(AbstractAuth):
+        async def async_get_access_token(self) -> str:
+            return "token"
+
+        async def request(self, method, url, **kwargs):
+            class DummyResponse:
+                async def json(self_inner):
+                    raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+            return DummyResponse()
+
+    provider = Provider(DummyAuth(None))
+
+    with pytest.raises(PlaceFulfillmentError):
+        asyncio.run(provider.discover())
