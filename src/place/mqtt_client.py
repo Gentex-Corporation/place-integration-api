@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Callable
 from urllib.parse import quote
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.reasoncodes import ReasonCode
 
 from .config import ALGORITHM, EXPIRE_SEC, KEEP_ALIVE_SEC, PATH, REGION, SCHEME, SERVICE
+from .errors import PlaceMqttConnectionError
 from .models import Credentials
 
 
@@ -92,12 +95,17 @@ class MqttClient:
         self.endpoint = endpoint
         self.credentials = credentials
         self._client: mqtt.Client | None = None
+        self._connected_event = threading.Event()
+        self._connect_error: ReasonCode | None = None
 
     def connect(
         self,
         on_message: Callable[[str, bytes], None] | None = None,
         on_connect: Callable[[], None] | None = None,
     ) -> None:
+        self._connected_event.clear()
+        self._connect_error = None
+
         signed_uri = get_signed_uri(
             access_key_id=self.credentials.access_key_id,
             secret_access_key=self.credentials.secret_access_key,
@@ -119,8 +127,12 @@ class MqttClient:
         def _on_connect(_client, _userdata, _flags, reason_code, _properties):
             if reason_code.is_failure:
                 print(f"Connect failed: {reason_code}")
+                self._connect_error = reason_code
+                self._connected_event.set()
                 return
             print("Connected")
+            self._connect_error = None
+            self._connected_event.set()
             if on_connect:
                 try:
                     on_connect()
@@ -148,6 +160,23 @@ class MqttClient:
     def loop_stop(self) -> None:
         if self._client:
             self._client.loop_stop()
+
+    def wait_for_connection(self, timeout: float = 10.0) -> None:
+        """Block until the initial CONNACK is received.
+
+        Raises PlaceMqttConnectionError if the broker rejects the connection
+        or none arrives within timeout, tearing down the client in that case.
+        """
+        if not self._connected_event.wait(timeout):
+            self.disconnect()
+            self.loop_stop()
+            raise PlaceMqttConnectionError("Timed out waiting for MQTT CONNACK")
+        if self._connect_error is not None:
+            self.disconnect()
+            self.loop_stop()
+            raise PlaceMqttConnectionError(
+                f"MQTT connection rejected: {self._connect_error}"
+            )
 
     def subscribe(self, topic: str, qos: int = 1) -> None:
         assert self._client is not None
