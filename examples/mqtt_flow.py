@@ -83,12 +83,8 @@ async def main() -> None:
             print(f"Subscribed household: {subscribed}")
 
         for thing in thing_names or []:
-            subscribed = messages.subscribe_shadow(thing, qos=1)
-            print(f"Subscribed shadow: {subscribed}")
-
-        for thing in thing_names or []:
-            published = messages.publish_shadow_get(thing, qos=1)
-            print(f"Published shadow get: {published}")
+            subscribed = messages.subscribe_shadow_and_get(thing, qos=1)
+            print(f"Requested shadow subscription: {subscribed}")
 
     logging.basicConfig(level=logging.DEBUG)
     client.connect(on_message=on_message, on_connect=on_connect)
