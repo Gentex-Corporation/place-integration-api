@@ -11,3 +11,7 @@ class PlaceFulfillmentError(PlaceApiError):
 
 class PlaceMqttConnectionError(PlaceApiError):
     """Raised when the MQTT broker rejects or fails to establish a connection."""
+
+
+class PlaceMqttSubscriptionError(PlaceApiError):
+    """Raised when an MQTT subscription cannot be sent."""

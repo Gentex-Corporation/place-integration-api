@@ -73,6 +73,18 @@ class PlaceMessages:
         self._client.subscribe(topic, qos=qos)
         return name
 
+    def subscribe_shadow_and_get(self, thing_name: str, qos: int = 1) -> str:
+        """Subscribe to a shadow and request its state after a successful SUBACK."""
+        name = thing_name.strip()
+        assert name
+        topic = shadow_subscription_topic(name)
+        self._client.subscribe(
+            topic,
+            qos=qos,
+            on_subscribe=lambda: self.publish_shadow_get(name, qos=qos),
+        )
+        return name
+
     def publish_shadow_get(self, thing_name: str, qos: int = 1) -> str:
         name = thing_name.strip()
         assert name

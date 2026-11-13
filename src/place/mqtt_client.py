@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -12,8 +13,10 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.reasoncodes import ReasonCode
 
 from .config import ALGORITHM, EXPIRE_SEC, KEEP_ALIVE_SEC, PATH, REGION, SCHEME, SERVICE
-from .errors import PlaceMqttConnectionError
+from .errors import PlaceMqttConnectionError, PlaceMqttSubscriptionError
 from .models import Credentials
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _hmac_sha256(key: bytes, msg: str) -> bytes:
@@ -97,6 +100,8 @@ class MqttClient:
         self._client: mqtt.Client | None = None
         self._connected_event = threading.Event()
         self._connect_error: ReasonCode | None = None
+        self._subscription_lock = threading.RLock()
+        self._pending_subscriptions: dict[int, tuple[str, Callable[[], None]]] = {}
 
     def connect(
         self,
@@ -125,6 +130,8 @@ class MqttClient:
         client.tls_set()
 
         def _on_connect(_client, _userdata, _flags, reason_code, _properties):
+            with self._subscription_lock:
+                self._pending_subscriptions.clear()
             if reason_code.is_failure:
                 print(f"Connect failed: {reason_code}")
                 self._connect_error = reason_code
@@ -143,17 +150,38 @@ class MqttClient:
             if on_message:
                 on_message(msg.topic, msg.payload)
 
+        def _on_subscribe(_client, _userdata, mid, reason_codes, _properties):
+            with self._subscription_lock:
+                pending = self._pending_subscriptions.pop(mid, None)
+            if pending is None:
+                return
+            topic, callback = pending
+            if not reason_codes or any(code.is_failure for code in reason_codes):
+                _LOGGER.error(
+                    "MQTT subscription to %s was rejected: %s", topic, reason_codes
+                )
+                return
+            try:
+                callback()
+            except Exception:
+                _LOGGER.exception("MQTT subscription callback failed for %s", topic)
+
         def _on_disconnect(_client, _userdata, _flags, reason_code, _properties):
+            with self._subscription_lock:
+                self._pending_subscriptions.clear()
             print(f"Disconnected: {reason_code}")
 
         client.on_connect = _on_connect
         client.on_message = _on_message
+        client.on_subscribe = _on_subscribe
         client.on_disconnect = _on_disconnect
         client.enable_logger()
         client.connect(self.endpoint, 443, KEEP_ALIVE_SEC)
         self._client = client
 
     def disconnect(self) -> None:
+        with self._subscription_lock:
+            self._pending_subscriptions.clear()
         if self._client:
             self._client.disconnect()
 
@@ -178,9 +206,24 @@ class MqttClient:
                 f"MQTT connection rejected: {self._connect_error}"
             )
 
-    def subscribe(self, topic: str, qos: int = 1) -> None:
+    def subscribe(
+        self, topic: str, qos: int = 1, *, on_subscribe: Callable[[], None] | None = None
+    ) -> None:
+        """Subscribe to a topic and optionally call back after a successful SUBACK.
+
+        The callback runs on the MQTT network thread. Pending callbacks are
+        discarded on disconnect, so resubscribe from on_connect after a reconnect.
+        """
         assert self._client is not None
-        self._client.subscribe(topic, qos=qos)
+        # Keep the network thread from handling SUBACK before the MID (message identifier) is recorded.
+        with self._subscription_lock:
+            result, mid = self._client.subscribe(topic, qos=qos)
+            if result != mqtt.MQTT_ERR_SUCCESS:
+                raise PlaceMqttSubscriptionError(
+                    f"Could not subscribe to {topic}: {mqtt.error_string(result)}"
+                )
+            if on_subscribe is not None:
+                self._pending_subscriptions[mid] = (topic, on_subscribe)
 
     def publish(self, topic: str, payload: str | bytes = b"", qos: int = 1) -> None:
         assert self._client is not None
@@ -194,4 +237,3 @@ class MqttClient:
     def loop_forever(self) -> None:
         assert self._client is not None
         self._client.loop_forever()
-
