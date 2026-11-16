@@ -94,10 +94,13 @@ class MqttClient:
         *,
         endpoint: str,
         credentials: Credentials,
+        credentials_provider: Callable[[], Credentials] | None = None,
     ):
         self.endpoint = endpoint
         self.credentials = credentials
+        self._credentials_provider = credentials_provider
         self._client: mqtt.Client | None = None
+        self._stopping = threading.Event()
         self._connected_event = threading.Event()
         self._connect_error: ReasonCode | None = None
         self._subscription_lock = threading.RLock()
@@ -110,13 +113,7 @@ class MqttClient:
     ) -> None:
         self._connected_event.clear()
         self._connect_error = None
-
-        signed_uri = get_signed_uri(
-            access_key_id=self.credentials.access_key_id,
-            secret_access_key=self.credentials.secret_access_key,
-            session_token=self.credentials.session_token,
-            host=self.endpoint,
-        )
+        self._stopping.clear()
         client_id = f"{self.credentials.identity_id}-{uuid.uuid4()}"
 
         client = mqtt.Client(
@@ -125,9 +122,32 @@ class MqttClient:
             transport="websockets",
             protocol=mqtt.MQTTv311,
         )
-        path_with_query = "/mqtt" + signed_uri.split("/mqtt", 1)[1]
-        client.ws_set_options(path=path_with_query, headers={"Host": self.endpoint})
         client.tls_set()
+
+        first_attempt = True
+
+        def _on_pre_connect(_client, _userdata):
+            nonlocal first_attempt
+            if self._stopping.is_set():
+                raise OSError("MQTT client is stopping")
+            if not first_attempt and self._credentials_provider is not None:
+                try:
+                    credentials = self._credentials_provider()
+                except Exception:
+                    _LOGGER.warning("Unable to refresh MQTT credentials; retrying")
+                    raise OSError("Unable to refresh MQTT credentials") from None
+                if self._stopping.is_set():
+                    raise OSError("MQTT client is stopping")
+                self.credentials = credentials
+            first_attempt = False
+            signed_uri = get_signed_uri(
+                access_key_id=self.credentials.access_key_id,
+                secret_access_key=self.credentials.secret_access_key,
+                session_token=self.credentials.session_token,
+                host=self.endpoint,
+            )
+            path_with_query = "/mqtt" + signed_uri.split("/mqtt", 1)[1]
+            client.ws_set_options(path=path_with_query, headers={"Host": self.endpoint})
 
         def _on_connect(_client, _userdata, _flags, reason_code, _properties):
             with self._subscription_lock:
@@ -171,6 +191,7 @@ class MqttClient:
                 self._pending_subscriptions.clear()
             print(f"Disconnected: {reason_code}")
 
+        client.on_pre_connect = _on_pre_connect
         client.on_connect = _on_connect
         client.on_message = _on_message
         client.on_subscribe = _on_subscribe
@@ -180,12 +201,14 @@ class MqttClient:
         self._client = client
 
     def disconnect(self) -> None:
+        self._stopping.set()
         with self._subscription_lock:
             self._pending_subscriptions.clear()
         if self._client:
             self._client.disconnect()
 
     def loop_stop(self) -> None:
+        self._stopping.set()
         if self._client:
             self._client.loop_stop()
 
@@ -232,8 +255,10 @@ class MqttClient:
 
     def loop_start(self):
         assert self._client is not None
+        self._stopping.clear()
         self._client.loop_start()
 
     def loop_forever(self) -> None:
         assert self._client is not None
+        self._stopping.clear()
         self._client.loop_forever()

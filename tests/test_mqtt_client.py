@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from threading import Event, Thread
+from typing import cast
 from unittest.mock import MagicMock, call, patch
 
 import paho.mqtt.client as mqtt
@@ -51,10 +52,199 @@ def test_mqtt_client_connect_sets_up_client(
     )
     mqtt_client.connect()
 
+    client.on_pre_connect(client, None)
     mock_get_signed_uri.assert_called_once()
     client.ws_set_options.assert_called()
     client.tls_set.assert_called_once()
     client.connect.assert_called_once()
+
+
+def test_reconnect_resigns_static_credentials() -> None:
+    credentials = Credentials("key", "secret", "token", "identity")
+    wrapper = MqttClient(endpoint="example.iot.amazonaws.com", credentials=credentials)
+    paths: list[str] = []
+
+    def create_socket(client: mqtt.Client) -> MagicMock:
+        paths.append(client._websocket_path)
+        return MagicMock()
+
+    with (
+        patch.object(
+            mqtt.Client, "_create_socket", autospec=True, side_effect=create_socket
+        ),
+        patch.object(mqtt.Client, "_send_connect", return_value=mqtt.MQTT_ERR_SUCCESS),
+        patch(
+            "place.mqtt_client.get_signed_uri",
+            side_effect=[
+                "wss://example.iot.amazonaws.com/mqtt?signature=first",
+                "wss://example.iot.amazonaws.com/mqtt?signature=second",
+            ],
+        ) as sign,
+    ):
+        wrapper.connect()
+        assert wrapper._client is not None
+        wrapper._client.reconnect()
+
+    assert paths == ["/mqtt?signature=first", "/mqtt?signature=second"]
+    expected = call(
+        access_key_id="key",
+        secret_access_key="secret",
+        session_token="token",
+        host=wrapper.endpoint,
+    )
+    assert sign.call_args_list == [expected, expected]
+
+
+def test_reconnect_retries_provider_failure_and_resubscribes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    initial = Credentials("old-key", "old-secret", "old-token", "identity")
+    refreshed = Credentials("new-key", "new-secret", "new-token", "identity")
+    provider = MagicMock(side_effect=[RuntimeError("sensitive-token"), refreshed])
+    wrapper = MqttClient(
+        endpoint="example.iot.amazonaws.com",
+        credentials=initial,
+        credentials_provider=provider,
+    )
+    messages = PlaceMessages(wrapper)
+    paths: list[str] = []
+    reconnected = Event()
+    stop_loop = Event()
+    loop_calls = 0
+
+    def on_connect() -> None:
+        messages.subscribe_shadow_and_get("one")
+
+    def connack(client: mqtt.Client) -> None:
+        cast(MagicMock, client.on_connect)(
+            client, None, None, ReasonCode(PacketTypes.CONNACK, identifier=0), None
+        )
+
+    def create_socket(client: mqtt.Client) -> MagicMock:
+        paths.append(client._websocket_path)
+        return MagicMock()
+
+    def network_loop(client: mqtt.Client, timeout: float) -> mqtt.MQTTErrorCode:
+        nonlocal loop_calls
+        loop_calls += 1
+        if loop_calls <= 2:
+            return mqtt.MQTT_ERR_CONN_LOST
+        connack(client)
+        cast(MagicMock, client.on_subscribe)(
+            client, None, 2, [ReasonCode(PacketTypes.SUBACK, identifier=1)], None
+        )
+        reconnected.set()
+        stop_loop.wait(2)
+        return mqtt.MQTT_ERR_CONN_LOST
+
+    with (
+        patch.object(
+            mqtt.Client, "_create_socket", autospec=True, side_effect=create_socket
+        ),
+        patch.object(mqtt.Client, "_send_connect", return_value=mqtt.MQTT_ERR_SUCCESS),
+        patch.object(mqtt.Client, "_loop", autospec=True, side_effect=network_loop),
+        patch.object(mqtt.Client, "_reconnect_wait"),
+        patch.object(
+            mqtt.Client,
+            "subscribe",
+            side_effect=[(mqtt.MQTT_ERR_SUCCESS, 1), (mqtt.MQTT_ERR_SUCCESS, 2)],
+        ) as subscribe,
+        patch.object(mqtt.Client, "publish") as publish,
+        caplog.at_level(logging.WARNING),
+    ):
+        wrapper.connect(on_connect=on_connect)
+        client = wrapper._client
+        assert client is not None
+        connack(client)
+        wrapper.loop_start()
+        try:
+            assert reconnected.wait(2)
+            assert provider.call_count == 2
+            assert len(paths) == 2
+            assert "old-key" in paths[0] and "old-token" in paths[0]
+            assert "new-key" in paths[1] and "new-token" in paths[1]
+            assert wrapper.credentials == refreshed
+            assert subscribe.call_count == 2
+            publish.assert_called_once_with("$aws/things/one/shadow/get", b"", qos=1)
+            assert "Unable to refresh MQTT credentials" in caplog.text
+            assert "sensitive-token" not in caplog.text
+        finally:
+            wrapper.disconnect()
+            stop_loop.set()
+            wrapper.loop_stop()
+
+
+def test_disconnect_during_credential_refresh_prevents_reconnect() -> None:
+    initial = Credentials("key", "secret", "token", "identity")
+    entered = Event()
+    release = Event()
+
+    def provider() -> Credentials:
+        entered.set()
+        assert release.wait(2)
+        return initial
+
+    wrapper = MqttClient(
+        endpoint="example.iot.amazonaws.com",
+        credentials=initial,
+        credentials_provider=provider,
+    )
+    with (
+        patch.object(mqtt.Client, "_create_socket", return_value=MagicMock()) as create_socket,
+        patch.object(mqtt.Client, "_send_connect", return_value=mqtt.MQTT_ERR_SUCCESS),
+        patch.object(mqtt.Client, "_loop", return_value=mqtt.MQTT_ERR_CONN_LOST),
+        patch.object(mqtt.Client, "_reconnect_wait"),
+    ):
+        wrapper.connect()
+        wrapper.loop_start()
+        try:
+            assert entered.wait(2)
+            wrapper.disconnect()
+        finally:
+            release.set()
+            wrapper.loop_stop()
+        assert create_socket.call_count == 1
+
+
+def test_loop_stop_during_credential_refresh_prevents_reconnect() -> None:
+    credentials = Credentials("key", "secret", "token", "identity")
+    entered = Event()
+    release = Event()
+    stopped = Event()
+
+    def provider() -> Credentials:
+        entered.set()
+        assert release.wait(2)
+        return credentials
+
+    wrapper = MqttClient(
+        endpoint="example.iot.amazonaws.com",
+        credentials=credentials,
+        credentials_provider=provider,
+    )
+
+    def stop() -> None:
+        wrapper.loop_stop()
+        stopped.set()
+
+    with (
+        patch.object(mqtt.Client, "_create_socket", return_value=MagicMock()) as create_socket,
+        patch.object(mqtt.Client, "_send_connect", return_value=mqtt.MQTT_ERR_SUCCESS),
+        patch.object(mqtt.Client, "_loop", return_value=mqtt.MQTT_ERR_CONN_LOST),
+        patch.object(mqtt.Client, "_reconnect_wait"),
+    ):
+        wrapper.connect()
+        wrapper.loop_start()
+        stop_thread = Thread(target=stop)
+        try:
+            assert entered.wait(2)
+            stop_thread.start()
+            assert wrapper._stopping.wait(2)
+        finally:
+            release.set()
+            stop_thread.join(timeout=2)
+        assert stopped.is_set()
+        assert create_socket.call_count == 1
 
 
 @patch("place.mqtt_client.mqtt.Client")
