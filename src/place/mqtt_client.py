@@ -197,7 +197,21 @@ class MqttClient:
         client.on_subscribe = _on_subscribe
         client.on_disconnect = _on_disconnect
         client.enable_logger()
-        client.connect(self.endpoint, 443, KEEP_ALIVE_SEC)
+        try:
+            client.connect(self.endpoint, 443, KEEP_ALIVE_SEC)
+        except OSError as err:
+            try:
+                client.disconnect()
+            except OSError:
+                _LOGGER.debug(
+                    "Failed to disconnect after MQTT connection error", exc_info=True
+                )
+            if sock := client.socket():
+                try:
+                    sock.close()
+                except OSError:
+                    _LOGGER.debug("Failed to close MQTT socket", exc_info=True)
+            raise PlaceMqttConnectionError("Failed to establish MQTT connection") from err
         self._client = client
 
     def disconnect(self) -> None:
