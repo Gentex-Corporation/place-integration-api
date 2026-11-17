@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import socket
 from threading import Event, Thread
 from typing import cast
 from unittest.mock import MagicMock, call, patch
@@ -57,6 +58,62 @@ def test_mqtt_client_connect_sets_up_client(
     client.ws_set_options.assert_called()
     client.tls_set.assert_called_once()
     client.connect.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(socket.gaierror("DNS lookup failed"), id="dns"),
+        pytest.param(TimeoutError("connection timed out"), id="timeout"),
+        pytest.param(mqtt.WebsocketConnectionError("handshake failed"), id="websocket"),
+    ],
+)
+def test_mqtt_client_connect_maps_network_errors(error: OSError) -> None:
+    credentials = Credentials("key", "secret", "token", "identity")
+    wrapper = MqttClient(endpoint="example.iot.amazonaws.com", credentials=credentials)
+    with patch("place.mqtt_client.mqtt.Client") as client_cls:
+        client = client_cls.return_value
+        client.connect.side_effect = error
+
+        with pytest.raises(PlaceMqttConnectionError) as exc_info:
+            wrapper.connect()
+
+    assert exc_info.value.__cause__ is error
+    client.disconnect.assert_called_once()
+    client.loop_start.assert_not_called()
+
+
+def test_mqtt_client_connect_preserves_error_if_disconnect_fails() -> None:
+    credentials = Credentials("key", "secret", "token", "identity")
+    wrapper = MqttClient(endpoint="example.iot.amazonaws.com", credentials=credentials)
+    error = OSError("connection failed")
+    with patch("place.mqtt_client.mqtt.Client") as client_cls:
+        client = client_cls.return_value
+        client.connect.side_effect = error
+        client.disconnect.side_effect = OSError("disconnect failed")
+
+        with pytest.raises(PlaceMqttConnectionError) as exc_info:
+            wrapper.connect()
+
+    assert exc_info.value.__cause__ is error
+
+
+def test_mqtt_client_connect_closes_socket_after_partial_connection() -> None:
+    credentials = Credentials("key", "secret", "token", "identity")
+    wrapper = MqttClient(endpoint="example.iot.amazonaws.com", credentials=credentials)
+    sock = MagicMock()
+    error = OSError("connection failed")
+
+    with (
+        patch.object(mqtt.Client, "_create_socket", return_value=sock),
+        patch.object(mqtt.Client, "_send_connect", side_effect=error),
+        patch.object(mqtt.Client, "disconnect"),
+        pytest.raises(PlaceMqttConnectionError) as exc_info,
+    ):
+        wrapper.connect()
+
+    assert exc_info.value.__cause__ is error
+    sock.close.assert_called_once()
 
 
 def test_reconnect_resigns_static_credentials() -> None:
@@ -190,7 +247,9 @@ def test_disconnect_during_credential_refresh_prevents_reconnect() -> None:
         credentials_provider=provider,
     )
     with (
-        patch.object(mqtt.Client, "_create_socket", return_value=MagicMock()) as create_socket,
+        patch.object(
+            mqtt.Client, "_create_socket", return_value=MagicMock()
+        ) as create_socket,
         patch.object(mqtt.Client, "_send_connect", return_value=mqtt.MQTT_ERR_SUCCESS),
         patch.object(mqtt.Client, "_loop", return_value=mqtt.MQTT_ERR_CONN_LOST),
         patch.object(mqtt.Client, "_reconnect_wait"),
@@ -228,7 +287,9 @@ def test_loop_stop_during_credential_refresh_prevents_reconnect() -> None:
         stopped.set()
 
     with (
-        patch.object(mqtt.Client, "_create_socket", return_value=MagicMock()) as create_socket,
+        patch.object(
+            mqtt.Client, "_create_socket", return_value=MagicMock()
+        ) as create_socket,
         patch.object(mqtt.Client, "_send_connect", return_value=mqtt.MQTT_ERR_SUCCESS),
         patch.object(mqtt.Client, "_loop", return_value=mqtt.MQTT_ERR_CONN_LOST),
         patch.object(mqtt.Client, "_reconnect_wait"),
@@ -375,7 +436,9 @@ def test_shadow_get_waits_for_each_successful_suback(
     assert client.publish.call_count == 4
 
 
-@pytest.mark.parametrize("reason_codes", [[ReasonCode(PacketTypes.SUBACK, identifier=128)], []])
+@pytest.mark.parametrize(
+    "reason_codes", [[ReasonCode(PacketTypes.SUBACK, identifier=128)], []]
+)
 def test_failed_suback_does_not_request_shadow(
     mqtt_pair: tuple[MqttClient, MagicMock],
     caplog: pytest.LogCaptureFixture,
