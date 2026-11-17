@@ -5,10 +5,21 @@ from typing import Any, Dict
 import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
+from botocore.exceptions import ClientError, ConnectionError, HTTPClientError
 
 
-from .aws_srp import AWSSRP
-from ..config import REGION, COGNITO_CLIENT_ID, COGNITO_USER_POOL_ID, COGNITO_IDENTITY_POOL_ID
+from .aws_srp import AWSSRP, ForceChangePasswordException
+from ..config import (
+    REGION,
+    COGNITO_CLIENT_ID,
+    COGNITO_USER_POOL_ID,
+    COGNITO_IDENTITY_POOL_ID,
+)
+from ..errors import (
+    PlaceInvalidCredentialsError,
+    PlaceLoginConnectionError,
+    PlaceLoginError,
+)
 from ..models import Credentials
 
 
@@ -19,6 +30,7 @@ def login(username: str, password: str) -> Dict[str, Any]:
         username=username,
         password=password,
     )
+
 
 def get_iot_credentials(id_token: str, access_token: str) -> Credentials:
     """Exchange a Cognito ID token for AWS IoT credentials."""
@@ -64,6 +76,24 @@ def get_tokens_via_srp(
         pool_region=region,
         client_secret=client_secret,
     )
-    return aws.authenticate_user()
-
-
+    try:
+        return aws.authenticate_user()
+    except (
+        aws.client.exceptions.NotAuthorizedException,
+        aws.client.exceptions.UserNotFoundException,
+        aws.client.exceptions.UserNotConfirmedException,
+        aws.client.exceptions.PasswordResetRequiredException,
+        ForceChangePasswordException,
+    ) as err:
+        raise PlaceInvalidCredentialsError(
+            "Place account authentication failed"
+        ) from err
+    except (
+        aws.client.exceptions.TooManyRequestsException,
+        aws.client.exceptions.InternalErrorException,
+        ConnectionError,
+        HTTPClientError,
+    ) as err:
+        raise PlaceLoginConnectionError("Place login service unavailable") from err
+    except ClientError as err:
+        raise PlaceLoginError("Place login failed") from err
