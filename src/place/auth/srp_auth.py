@@ -16,6 +16,9 @@ from ..config import (
     COGNITO_IDENTITY_POOL_ID,
 )
 from ..errors import (
+    PlaceCredentialExchangeAuthError,
+    PlaceCredentialExchangeConnectionError,
+    PlaceCredentialExchangeError,
     PlaceInvalidCredentialsError,
     PlaceLoginConnectionError,
     PlaceLoginError,
@@ -42,13 +45,29 @@ def get_iot_credentials(id_token: str, access_token: str) -> Credentials:
     provider_key = f"cognito-idp.{REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}"
     logins = {provider_key: id_token}
 
-    identity_id = identity.get_id(
-        IdentityPoolId=COGNITO_IDENTITY_POOL_ID, Logins=logins
-    )["IdentityId"]
-
-    creds = identity.get_credentials_for_identity(
-        IdentityId=identity_id, Logins=logins
-    )["Credentials"]
+    try:
+        identity_id = identity.get_id(
+            IdentityPoolId=COGNITO_IDENTITY_POOL_ID, Logins=logins
+        )["IdentityId"]
+        creds = identity.get_credentials_for_identity(
+            IdentityId=identity_id, Logins=logins
+        )["Credentials"]
+    except identity.exceptions.NotAuthorizedException as err:
+        raise PlaceCredentialExchangeAuthError(
+            "Place identity authorization failed"
+        ) from err
+    except (
+        identity.exceptions.TooManyRequestsException,
+        identity.exceptions.InternalErrorException,
+        identity.exceptions.ExternalServiceException,
+        ConnectionError,
+        HTTPClientError,
+    ) as err:
+        raise PlaceCredentialExchangeConnectionError(
+            "Place credential exchange service unavailable"
+        ) from err
+    except ClientError as err:
+        raise PlaceCredentialExchangeError("Place credential exchange failed") from err
 
     return Credentials(
         access_key_id=creds["AccessKeyId"],

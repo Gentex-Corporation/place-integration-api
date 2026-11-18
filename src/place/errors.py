@@ -17,6 +17,18 @@ class PlaceLoginConnectionError(PlaceLoginError):
     """Raised when the login service is unavailable."""
 
 
+class PlaceCredentialExchangeError(PlaceApiError):
+    """Raised when AWS IoT credentials cannot be obtained."""
+
+
+class PlaceCredentialExchangeAuthError(PlaceCredentialExchangeError):
+    """Raised when the credentials exchange rejects the user's identity."""
+
+
+class PlaceCredentialExchangeConnectionError(PlaceCredentialExchangeError):
+    """Raised when the credentials exchange service is unavailable."""
+
+
 class PlaceFulfillmentError(PlaceApiError):
     """Raised when the fulfillment API reports a business-logic failure."""
 
